@@ -1,0 +1,27 @@
+name: Gitea mirror-sync (reusable)
+# Reusable: tell Gitea to pull this repo's mirror immediately instead of waiting
+# for Gitea's 8h schedule. Runs on the in-cluster thecrimsontint-arc org runner and
+# hits Gitea's internal API (nothing exposed). Called by a thin on:push workflow in
+# each mirrored repo. All Gitea mirrors live under the thecrimsontint org.
+on:
+  workflow_call:
+
+concurrency:
+  group: gitea-mirror-sync-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  mirror-sync:
+    runs-on: thecrimsontint-arc
+    steps:
+      - name: Trigger Gitea pull-mirror sync
+        env:
+          GITEA_TOKEN: ${{ secrets.GITEA_MIRROR_TOKEN }}
+        run: |
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY##*/}"
+          curl -fsS -k -X POST \
+            -H "Authorization: token ${GITEA_TOKEN}" \
+            -H "Accept: application/json" \
+            "https://gitea-http.gitea.svc.cluster.local:3000/api/v1/repos/thecrimsontint/${repo}/mirror-sync"
+          echo "Requested Gitea mirror-sync for thecrimsontint/${repo}."
