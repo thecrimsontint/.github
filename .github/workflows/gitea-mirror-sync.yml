@@ -2,7 +2,8 @@ name: Gitea mirror-sync (reusable)
 # Reusable: tell Gitea to pull this repo's mirror immediately instead of waiting
 # for Gitea's 8h schedule. Runs on the in-cluster thecrimsontint-arc org runner and
 # hits Gitea's internal API (nothing exposed). Called by a thin on:push workflow in
-# each mirrored repo. All Gitea mirrors live under the thecrimsontint org.
+# each mirrored repo. Owner-aware: most mirrors live under the thecrimsontint Gitea
+# org; some legacy ones still under the jstewart user until re-homed.
 on:
   workflow_call:
 
@@ -20,8 +21,15 @@ jobs:
         run: |
           set -euo pipefail
           repo="${GITHUB_REPOSITORY##*/}"
-          curl -fsS -k -X POST \
-            -H "Authorization: token ${GITEA_TOKEN}" \
-            -H "Accept: application/json" \
-            "https://gitea-http.gitea.svc.cluster.local:3000/api/v1/repos/thecrimsontint/${repo}/mirror-sync"
-          echo "Requested Gitea mirror-sync for thecrimsontint/${repo}."
+          base="https://gitea-http.gitea.svc.cluster.local:3000/api/v1"
+          for owner in thecrimsontint jstewart; do
+            code=$(curl -s -k -o /dev/null -w "%{http_code}" -X POST \
+              -H "Authorization: token ${GITEA_TOKEN}" -H "Accept: application/json" \
+              "${base}/repos/${owner}/${repo}/mirror-sync") || true
+            if [ "$code" = "200" ]; then
+              echo "Requested Gitea mirror-sync for ${owner}/${repo}."
+              exit 0
+            fi
+          done
+          echo "No Gitea mirror found for ${repo} under thecrimsontint or jstewart (http=${code})." >&2
+          exit 1
