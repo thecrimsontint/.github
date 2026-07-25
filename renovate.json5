@@ -1,0 +1,179 @@
+{
+  // ===========================================================================
+  // Self-hosted Renovate GLOBAL config for the thecrimsontint org.
+  // Consumed by .github/workflows/renovate.yml (autodiscover, no per-repo files).
+  // Encodes the homelab's two non-standard facts renovate can't infer:
+  //   1. every image ref is Harbor-proxy-pathed (harbor.nuc.../<alias>/<repo>) —
+  //      the customManagers below map each alias back to its real upstream so
+  //      renovate resolves versions against the true registry.
+  //   2. several pins are DELIBERATE ceilings (re-architectures / LTS lines /
+  //      untagged upstreams) — packageRules disable those so renovate never
+  //      "helpfully" proposes a landmine. See each rule's note + the repo
+  //      CLAUDE.mds ("pin ceiling").
+  // Phase 2 (not yet done): annotate docker-images/*/Dockerfile ARGs with
+  //   `# renovate: datasource=… depName=…` so the Dockerfile customManager
+  //   picks up UPSTREAM_VERSION/CLAUDE_CODE_VERSION/etc.
+  // ===========================================================================
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":disableRateLimiting", // self-hosted, own runner — no shared-quota concern
+    "helpers:pinGitHubActionDigests",
+  ],
+  dependencyDashboard: true,
+  dependencyDashboardTitle: "Renovate Dependency Dashboard",
+  // Open PRs for review; the operator self-merges greens (no unattended automerge
+  // on a fleet where a chart float can roll live clusters — see helm-charts
+  // release model). Revisit automerge for digest/patch once trust is built.
+  automerge: false,
+  prConcurrentLimit: 12,
+  prHourlyLimit: 0,
+  timezone: "America/New_York",
+  schedule: ["* 2-7 * * 1,4"], // Mon + Thu, 02:00–07:59 local (quiet windows)
+  labels: ["dependencies", "renovate"],
+  // Don't scan vendored subchart copies / lockfiles — the wrapper Chart.yaml is
+  // the source of truth (helm-charts release model re-resolves floats at publish).
+  ignorePaths: [
+    "**/charts/*/charts/**",
+    "**/*.tgz",
+    "**/Chart.lock",
+    "**/collections/ansible_collections/**",
+  ],
+  // ---- Native managers ------------------------------------------------------
+  // helm: wrapper Chart.yaml dependency versions (the pinned, non-floating ones).
+  // dockerfile / github-actions / gomod etc.: default behaviour.
+  helmv3: { fileMatch: ["(^|/)Chart\\.ya?ml$"] },
+  // ---- Custom managers: Harbor-proxy-pathed image pins ----------------------
+  // Match `harbor.nuc.home.thecrimsontint.com/<alias>/<repo>:<tag>` in chart
+  // values, argo manifests, and TrueNAS terraform, one manager per alias so the
+  // datasource + registryUrl point at the REAL upstream (Harbor is just a cache).
+  customManagers: [
+    {
+      customType: "regex",
+      description: "Harbor dockerhub/ + gcr/ proxied images (both serve Docker Hub content)",
+      fileMatch: [
+        "charts/.+/values\\.ya?ml$",
+        "(nuc|turingpi)/manifests/.+\\.ya?ml$",
+        "truenas/.+\\.tf$",
+      ],
+      matchStrings: [
+        "harbor\\.nuc\\.home\\.thecrimsontint\\.com/(?:dockerhub|gcr)/(?<depName>[^:\"'\\s]+):(?<currentValue>v?[0-9][^\"'\\s]*)",
+      ],
+      datasourceTemplate: "docker",
+      registryUrlTemplate: "https://index.docker.io",
+    },
+    {
+      customType: "regex",
+      description: "Harbor ghcr/ proxied images",
+      fileMatch: ["charts/.+/values\\.ya?ml$", "(nuc|turingpi)/manifests/.+\\.ya?ml$", "truenas/.+\\.tf$"],
+      matchStrings: ["harbor\\.nuc\\.home\\.thecrimsontint\\.com/ghcr/(?<depName>[^:\"'\\s]+):(?<currentValue>v?[0-9][^\"'\\s]*)"],
+      datasourceTemplate: "docker",
+      registryUrlTemplate: "https://ghcr.io",
+    },
+    {
+      customType: "regex",
+      description: "Harbor quay/ proxied images",
+      fileMatch: ["charts/.+/values\\.ya?ml$", "(nuc|turingpi)/manifests/.+\\.ya?ml$", "truenas/.+\\.tf$"],
+      matchStrings: ["harbor\\.nuc\\.home\\.thecrimsontint\\.com/quay/(?<depName>[^:\"'\\s]+):(?<currentValue>v?[0-9][^\"'\\s]*)"],
+      datasourceTemplate: "docker",
+      registryUrlTemplate: "https://quay.io",
+    },
+    {
+      customType: "regex",
+      description: "Harbor elastic/ proxied images",
+      fileMatch: ["charts/.+/values\\.ya?ml$", "(nuc|turingpi)/manifests/.+\\.ya?ml$"],
+      matchStrings: ["harbor\\.nuc\\.home\\.thecrimsontint\\.com/elastic/(?<depName>[^:\"'\\s]+):(?<currentValue>v?[0-9][^\"'\\s]*)"],
+      datasourceTemplate: "docker",
+      registryUrlTemplate: "https://docker.elastic.co",
+    },
+    {
+      customType: "regex",
+      description: "Harbor gitea/ proxied images (docker.gitea.com)",
+      fileMatch: ["charts/.+/values\\.ya?ml$", "(nuc|turingpi)/manifests/.+\\.ya?ml$"],
+      matchStrings: ["harbor\\.nuc\\.home\\.thecrimsontint\\.com/gitea/(?<depName>[^:\"'\\s]+):(?<currentValue>[0-9][^\"'\\s]*)"],
+      datasourceTemplate: "docker",
+      registryUrlTemplate: "https://docker.gitea.com",
+    },
+    {
+      customType: "regex",
+      description: "docker.io refs rewritten to mirror.gcr.io in charts (Dragonfly Option A) — still Docker Hub content",
+      fileMatch: ["charts/.+/values\\.ya?ml$"],
+      matchStrings: ["mirror\\.gcr\\.io/(?<depName>[^:\"'\\s]+):(?<currentValue>v?[0-9][^\"'\\s]*)"],
+      datasourceTemplate: "docker",
+      registryUrlTemplate: "https://index.docker.io",
+    },
+    {
+      customType: "regex",
+      description: "docker-images Dockerfile ARGs annotated with a renovate hint (phase 2 backfill)",
+      fileMatch: ["(^|/)Dockerfile$"],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?\\s+ARG \\w+=\"?(?<currentValue>[^\"\\s]+)\"?",
+      ],
+    },
+  ],
+  // ---- Pin ceilings + policy (deliberate holds, verified 2026-07-25) --------
+  packageRules: [
+    {
+      matchDatasources: ["docker"],
+      matchPackageNames: ["library/mariadb", "mariadb"],
+      allowedVersions: "<12",
+      description: "Galera cluster stays on the 11.8 LTS line — no 12.x majors",
+    },
+    {
+      matchDatasources: ["docker"],
+      matchPackageNames: ["plexinc/pms-docker"],
+      enabled: false,
+      description: "Plex tracks the rolling :plexpass tag, not semver",
+    },
+    {
+      matchDatasources: ["docker"],
+      matchPackageNames: ["mattlqx/docker-pixelfed"],
+      enabled: false,
+      description: "Pixelfed MUST stay on :dev-nginx (tagged releases fatal on PG migration) — see pixelfed chart notes",
+    },
+    {
+      matchManagers: ["helmv3"],
+      matchDepNames: ["mastodon"],
+      enabled: false,
+      description: "Pin ceiling: upstream mastodon/chart has ZERO releases; app image tracked separately",
+    },
+    {
+      matchDatasources: ["docker"],
+      matchPackageNames: ["metabrainz/mb-solr", "metabrainz/musicbrainz-server", "metabrainz/sir"],
+      enabled: false,
+      description: "MusicBrainz images are date/schema-tagged, not semver — bump manually with the schema-change procedure",
+    },
+    {
+      matchDatasources: ["docker"],
+      matchPackageNames: ["siderolabs/talos-backup"],
+      enabled: false,
+      description: "Only beta tags exist upstream; bump manually when a stable ships",
+    },
+    {
+      matchPackageNames: ["/piraeus/"],
+      matchUpdateTypes: ["major"],
+      enabled: false,
+      description: "Piraeus majors (2.11 line) are RC-only + carry DRBD/ZFS shutdown behaviour — hold for a stable + manual review",
+    },
+    {
+      // rsky-pds is a git-SHA ARG pin (RSKY_REF) — even if a Dockerfile hint is
+      // added later, never auto-advance it: 0.3.x is a Postgres->SQLite
+      // re-architecture = a data migration, not a bump (see docker-images CLAUDE.md).
+      matchPackageNames: ["blacksky-algorithms/rsky", "/rsky/"],
+      enabled: false,
+      description: "Pin ceiling: storage-engine migration project, never auto-bump",
+    },
+    {
+      matchUpdateTypes: ["pin", "digest"],
+      automerge: false,
+    },
+    {
+      matchManagers: ["helmv3"],
+      matchUpdateTypes: ["major"],
+      addLabels: ["major-review"],
+      description: "Flag chart majors loudly — helm-charts floats can roll live clusters",
+    },
+  ],
+}
