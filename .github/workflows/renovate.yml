@@ -1,0 +1,78 @@
+name: Renovate
+# Self-hosted Renovate for the whole thecrimsontint org. Autodiscovers every
+# repo and applies the single global config at renovate.json5 (this repo) — no
+# per-repo renovate.json needed. Runs on the in-cluster thecrimsontint-arc org
+# runner (reaches github + public registries; Harbor is bypassed via the
+# registryAliases/customManagers in renovate.json5). Opens PRs only; the operator
+# self-merges greens.
+#
+# WIRING (one-time, needs a GitHub identity — see the PR body / README):
+#   mint a fine-grained PAT or expand the gha-thecrimsontint App with
+#   contents:write + pull_requests:write + workflows:write, store it at OpenBao
+#   secret/renovate field `token`, surface it into the gha ns via the
+#   gha-resources ExternalSecret, then terraform github/secrets.tf pushes it as
+#   the RENOVATE_TOKEN Actions secret on this repo. Until then this workflow
+#   detects the missing token and skips cleanly.
+on:
+  schedule:
+    - cron: "0 6 * * 1,4" # Mon + Thu 06:00 UTC; renovate.json5 `schedule` gates further
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: "Renovate LOG_LEVEL"
+        default: "info"
+        required: false
+      dryRun:
+        description: "Dry run mode (extract | lookup | full) — blank = real run"
+        default: ""
+        required: false
+
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+jobs:
+  renovate:
+    runs-on: thecrimsontint-arc
+    steps:
+      - name: Guard on RENOVATE_TOKEN
+        id: guard
+        env:
+          RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+        run: |
+          if [ -z "${RENOVATE_TOKEN}" ]; then
+            echo "::notice::RENOVATE_TOKEN not set — renovate is not wired yet (mint PAT/App -> OpenBao secret/renovate -> gha-resources ExternalSecret -> terraform). Skipping without failure."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout (global renovate.json5)
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run Renovate
+        if: steps.guard.outputs.run == 'true'
+        env:
+          RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+          RENOVATE_PLATFORM: github
+          RENOVATE_AUTODISCOVER: "true"
+          RENOVATE_AUTODISCOVER_FILTER: "thecrimsontint/*"
+          # Global config, applied to every autodiscovered repo; no per-repo file.
+          RENOVATE_CONFIG_FILE: "renovate.json5"
+          RENOVATE_ONBOARDING: "false"
+          RENOVATE_REQUIRE_CONFIG: "optional"
+          # v1 uses anonymous Docker Hub tag-list lookups (~20 images x2/wk is well
+          # under the anon limit). To add authenticated lookups later, mint a
+          # dedicated DOCKERHUB_USERNAME/DOCKERHUB_TOKEN Actions secret on THIS repo
+          # (the existing dockerhub creds are scoped to docker-images only) and set
+          # RENOVATE_HOST_RULES for matchHost index.docker.io.
+          LOG_LEVEL: ${{ github.event.inputs.logLevel || 'info' }}
+          RENOVATE_DRY_RUN: ${{ github.event.inputs.dryRun }}
+        run: npx --yes renovate@41
