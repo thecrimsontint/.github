@@ -44,7 +44,7 @@
   // ---- Native managers ------------------------------------------------------
   // helm: wrapper Chart.yaml dependency versions (the pinned, non-floating ones).
   // dockerfile / github-actions / gomod etc.: default behaviour.
-  helmv3: { fileMatch: ["(^|/)Chart\\.ya?ml$"] },
+  helmv3: { managerFilePatterns: ["/(^|/)Chart\\.ya?ml$/"] },
   // ---- Custom managers: Harbor-proxy-pathed image pins ----------------------
   // Match `harbor.nuc.home.thecrimsontint.com/<alias>/<repo>:<tag>` in chart
   // values, argo manifests, and TrueNAS terraform, one manager per alias so the
@@ -53,10 +53,10 @@
     {
       customType: "regex",
       description: "Harbor dockerhub/ + gcr/ proxied images (both serve Docker Hub content)",
-      fileMatch: [
-        "charts/.+/values\\.ya?ml$",
-        "(nuc|turingpi)/manifests/.+\\.ya?ml$",
-        "truenas/.+\\.tf$",
+      managerFilePatterns: [
+        "/charts/.+/values\\.ya?ml$/",
+        "/(nuc|turingpi)/manifests/.+\\.ya?ml$/",
+        "/truenas/.+\\.tf$/",
       ],
       matchStrings: [
         "harbor\\.nuc\\.home\\.thecrimsontint\\.com/(?:dockerhub|gcr)/(?<depName>[^:\"'\\s]+):(?<currentValue>v?[0-9][^\"'\\s]*)",
@@ -67,7 +67,7 @@
     {
       customType: "regex",
       description: "Harbor ghcr/ proxied images",
-      fileMatch: ["charts/.+/values\\.ya?ml$", "(nuc|turingpi)/manifests/.+\\.ya?ml$", "truenas/.+\\.tf$"],
+      managerFilePatterns: ["/charts/.+/values\\.ya?ml$/", "/(nuc|turingpi)/manifests/.+\\.ya?ml$/", "/truenas/.+\\.tf$/"],
       matchStrings: ["harbor\\.nuc\\.home\\.thecrimsontint\\.com/ghcr/(?<depName>[^:\"'\\s]+):(?<currentValue>v?[0-9][^\"'\\s]*)"],
       datasourceTemplate: "docker",
       registryUrlTemplate: "https://ghcr.io",
@@ -75,7 +75,7 @@
     {
       customType: "regex",
       description: "Harbor quay/ proxied images",
-      fileMatch: ["charts/.+/values\\.ya?ml$", "(nuc|turingpi)/manifests/.+\\.ya?ml$", "truenas/.+\\.tf$"],
+      managerFilePatterns: ["/charts/.+/values\\.ya?ml$/", "/(nuc|turingpi)/manifests/.+\\.ya?ml$/", "/truenas/.+\\.tf$/"],
       matchStrings: ["harbor\\.nuc\\.home\\.thecrimsontint\\.com/quay/(?<depName>[^:\"'\\s]+):(?<currentValue>v?[0-9][^\"'\\s]*)"],
       datasourceTemplate: "docker",
       registryUrlTemplate: "https://quay.io",
@@ -83,7 +83,7 @@
     {
       customType: "regex",
       description: "Harbor elastic/ proxied images",
-      fileMatch: ["charts/.+/values\\.ya?ml$", "(nuc|turingpi)/manifests/.+\\.ya?ml$"],
+      managerFilePatterns: ["/charts/.+/values\\.ya?ml$/", "/(nuc|turingpi)/manifests/.+\\.ya?ml$/"],
       matchStrings: ["harbor\\.nuc\\.home\\.thecrimsontint\\.com/elastic/(?<depName>[^:\"'\\s]+):(?<currentValue>v?[0-9][^\"'\\s]*)"],
       datasourceTemplate: "docker",
       registryUrlTemplate: "https://docker.elastic.co",
@@ -91,7 +91,7 @@
     {
       customType: "regex",
       description: "Harbor gitea/ proxied images (docker.gitea.com)",
-      fileMatch: ["charts/.+/values\\.ya?ml$", "(nuc|turingpi)/manifests/.+\\.ya?ml$"],
+      managerFilePatterns: ["/charts/.+/values\\.ya?ml$/", "/(nuc|turingpi)/manifests/.+\\.ya?ml$/"],
       matchStrings: ["harbor\\.nuc\\.home\\.thecrimsontint\\.com/gitea/(?<depName>[^:\"'\\s]+):(?<currentValue>[0-9][^\"'\\s]*)"],
       datasourceTemplate: "docker",
       registryUrlTemplate: "https://docker.gitea.com",
@@ -99,7 +99,7 @@
     {
       customType: "regex",
       description: "docker.io refs rewritten to mirror.gcr.io in charts (Dragonfly Option A) — still Docker Hub content",
-      fileMatch: ["charts/.+/values\\.ya?ml$"],
+      managerFilePatterns: ["/charts/.+/values\\.ya?ml$/"],
       matchStrings: ["mirror\\.gcr\\.io/(?<depName>[^:\"'\\s]+):(?<currentValue>v?[0-9][^\"'\\s]*)"],
       datasourceTemplate: "docker",
       registryUrlTemplate: "https://index.docker.io",
@@ -107,7 +107,7 @@
     {
       customType: "regex",
       description: "docker-images Dockerfile ARGs annotated with a renovate hint (phase 2 backfill)",
-      fileMatch: ["(^|/)Dockerfile$"],
+      managerFilePatterns: ["/(^|/)Dockerfile$/"],
       matchStrings: [
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?\\s+ARG \\w+=\"?(?<currentValue>[^\"\\s]+)\"?",
       ],

@@ -49,13 +49,13 @@ jobs:
 
       - name: Checkout (global renovate.json5)
         if: steps.guard.outputs.run == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Setup Node
         if: steps.guard.outputs.run == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7.0.0
         with:
-          node-version: "22"
+          node-version: "24"
 
       - name: Run Renovate
         if: steps.guard.outputs.run == 'true'
@@ -75,4 +75,4 @@ jobs:
           # RENOVATE_HOST_RULES for matchHost index.docker.io.
           LOG_LEVEL: ${{ github.event.inputs.logLevel || 'info' }}
           RENOVATE_DRY_RUN: ${{ github.event.inputs.dryRun }}
-        run: npx --yes renovate@41
+        run: npx --yes renovate@44
