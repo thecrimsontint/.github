@@ -1,9 +1,9 @@
 name: Gitea mirror-sync (reusable)
-# Reusable: tell Gitea to pull this repo's mirror immediately instead of waiting
-# for Gitea's 8h schedule. Runs on the in-cluster thecrimsontint-arc org runner and
-# hits Gitea's internal API (nothing exposed). Called by a thin on:push workflow in
-# each mirrored repo. Owner-aware: most mirrors live under the thecrimsontint Gitea
-# org; some legacy ones still under the jstewart user until re-homed.
+# Reusable: makes Gitea pull this repo's mirror now instead of at its 8h schedule.
+# Called by a thin on:push workflow in each mirrored repo; runs on the in-cluster
+# thecrimsontint-arc org runner against Gitea's internal API (nothing exposed).
+# Tries both owners: most mirrors are under the thecrimsontint org, some legacy
+# ones still under the jstewart user until re-homed.
 on:
   workflow_call:
 
