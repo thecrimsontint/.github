@@ -1,8 +1,10 @@
 name: Renovate
 # Self-hosted Renovate for the whole thecrimsontint org: autodiscovers every repo and
 # applies the single global renovate.json5 in this repo — no per-repo renovate.json.
-# Runs on the in-cluster thecrimsontint-arc org runner (reaches github + public
-# registries; Harbor bypassed via registryAliases/customManagers in renovate.json5).
+# Runs on a GitHub-hosted runner: it only needs github + public registries (Harbor is
+# bypassed via registryAliases/customManagers in renovate.json5). It cannot use the
+# in-cluster thecrimsontint-arc scale set — this repo is PUBLIC and the org runner
+# group rejects public repos, so every run queued forever and was cancelled at 24h.
 # Opens PRs only; the operator self-merges greens.
 #
 # WIRING (one-time, needs a GitHub identity — see the PR body / README): mint a
@@ -31,7 +33,8 @@ concurrency:
 
 jobs:
   renovate:
-    runs-on: thecrimsontint-arc
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - name: Guard on RENOVATE_TOKEN
         id: guard
