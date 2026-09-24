@@ -15,7 +15,7 @@ name: Renovate
 # repo. Until then this workflow detects the missing token and skips cleanly.
 on:
   schedule:
-    - cron: "0 6 * * 1,4" # Mon + Thu 06:00 UTC; renovate.json5 `schedule` gates further
+    - cron: "0 6 * * 1,4" # Mon + Thu 06:00 UTC (GitHub may start it hours late); the only schedule gate
   workflow_dispatch:
     inputs:
       logLevel:
