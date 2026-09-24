@@ -30,8 +30,9 @@
   automerge: false,
   prConcurrentLimit: 12,
   prHourlyLimit: 0,
-  timezone: "America/New_York",
-  schedule: ["* 2-7 * * 1,4"], // Mon + Thu, 02:00–07:59 local (quiet windows)
+  // No `schedule`: the workflow cron is the only gate. GitHub fires scheduled runs
+  // hours late (06:00 UTC cron observed starting 06:36-17:05 UTC) and a New_York
+  // window drifts an hour with DST, so an in-config window made most runs no-ops.
   labels: ["dependencies", "renovate"],
   // Don't scan vendored subchart copies / lockfiles — the wrapper Chart.yaml is
   // the source of truth (helm-charts release model re-resolves floats at publish).
@@ -164,6 +165,69 @@
       matchPackageNames: ["blacksky-algorithms/rsky", "/rsky/"],
       enabled: false,
       description: "Pin ceiling: storage-engine migration project, never auto-bump",
+    },
+    // ---- Fleet holds (scan 2026-09-23) ------------------------------------------
+    {
+      // Harbor resolves to a LAN IP the GitHub-hosted runner cannot reach: a lookup
+      // times out, the docker datasource raises ExternalHostError and Renovate aborts
+      // the WHOLE repo. The customManagers above already look these refs up against
+      // the real upstream; the native helm-values/dockerfile copies (and the
+      // mirror.gcr.io duplicates) are redundant. Side effect: Dockerfile FROM lines
+      // via Harbor are not tracked until they get a customManager (phase 2).
+      matchPackageNames: ["harbor.nuc.home.thecrimsontint.com/**", "mirror.gcr.io/**"],
+      enabled: false,
+      description: "Native-manager copies of Harbor/mirror refs: unreachable host aborts the repo; customManagers cover them",
+    },
+    {
+      matchDatasources: ["terraform-provider"],
+      matchPackageNames: ["go-gitea/gitea"],
+      allowedVersions: "<0.8.0",
+      description: "Hold: go-gitea/gitea 0.8.x breaks mirror-repo reads (auth); stay on 0.7.x",
+    },
+    {
+      matchDatasources: ["docker"],
+      matchPackageNames: ["/(^|/)elasticsearch/elasticsearch$/"],
+      allowedVersions: "<9.5",
+      description: "Hold: ES 9.5 is one-way — separate change after a snapshot; move the ECK `version:` with the image",
+    },
+    {
+      matchDatasources: ["docker"],
+      matchPackageNames: ["/(^|/)dragonflyoss/(client|dfinit)$/"],
+      allowedVersions: "<1.5",
+      description: "Hold: dragonfly client 1.5.x only after a turingpi canary (piece-assembly corruption history)",
+    },
+    {
+      matchPackageNames: ["sigstore/cosign"],
+      allowedVersions: "<3",
+      description: "Hold: cosign v3 signs as OCI 1.1 referrers, not validated through Harbor replication — stay on v2",
+    },
+    {
+      matchPackageNames: ["sigstore/cosign-installer"],
+      matchUpdateTypes: ["major"],
+      enabled: false,
+      description: "Hold: installer stays on an exact v4.x tag (no floating v4 exists; v4 still honors cosign-release v2)",
+    },
+    {
+      matchPackageNames: ["node", "/(^|/)library/node$/", "actions/node-versions", "@types/node"],
+      allowedVersions: "<26",
+      description: "Hold: LTS only — Node 26 becomes LTS 2026-10-28; delete this rule after that date",
+    },
+    {
+      matchDatasources: ["docker", "github-releases", "github-tags"],
+      matchPackageNames: [
+        "kubernetes/kubernetes",
+        "/(^|/)alpine/k8s$/",
+        "/(^|/)(kubectl|kubelet|kube-apiserver|kube-controller-manager|kube-scheduler|kube-proxy)$/",
+        "/(^|/)siderolabs//",
+      ],
+      enabled: false,
+      description: "Cluster-tracking pins (k8s/kubectl/Talos) move only with the fleet roll (talos repo talos-upgrade.sh), never ahead of it",
+    },
+    {
+      matchDatasources: ["docker"],
+      matchPackageNames: ["mariadb-operator/mariadb-operator"],
+      enabled: false,
+      description: "Hold: operator image must not outrun its chart/CRDs; 26.10 needs autoUpdateDataPlane first (plan is to delete charts/mariadb-operator)",
     },
     {
       matchUpdateTypes: ["pin", "digest"],
