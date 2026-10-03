@@ -7,12 +7,17 @@ name: Gitea mirror-sync (reusable)
 on:
   workflow_call:
 
+# Default-branch pushes only, never cancelled. Feature/Renovate branches used to run
+# (and get cancelled by each other under cancel-in-progress) and a CANCELLED or failed
+# check blocks automerge on every PR; a skipped job counts as passing. Gitea's 8h pull
+# still picks up the other branches.
 concurrency:
   group: gitea-mirror-sync-${{ github.repository }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   mirror-sync:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: thecrimsontint-arc
     steps:
       - name: Trigger Gitea pull-mirror sync
