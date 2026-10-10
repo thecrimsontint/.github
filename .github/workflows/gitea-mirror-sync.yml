@@ -1,6 +1,6 @@
 name: Gitea mirror-sync (reusable)
 # Reusable: makes Gitea pull this repo's mirror now instead of at its 8h schedule.
-# Called by a thin on:push workflow in each mirrored repo; runs on the in-cluster
+# Called by a thin on:push (default branch only) workflow in each mirrored repo; runs on the in-cluster
 # thecrimsontint-arc org runner against Gitea's internal API (nothing exposed).
 # Tries both owners: most mirrors are under the thecrimsontint org, some legacy
 # ones still under the jstewart user until re-homed.
@@ -11,8 +11,11 @@ on:
 # (and get cancelled by each other under cancel-in-progress) and a CANCELLED or failed
 # check blocks automerge on every PR; a skipped job counts as passing. Gitea's 8h pull
 # still picks up the other branches.
+# `-v2`: runs of the pre-2026-10-03 version of this workflow (same group name,
+# cancel-in-progress: true) could still cancel a current run queued in the group
+# when a branch head jumped straight from an old caller pin to a new one.
 concurrency:
-  group: gitea-mirror-sync-${{ github.repository }}
+  group: gitea-mirror-sync-v2-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:
