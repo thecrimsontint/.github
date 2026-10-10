@@ -34,6 +34,7 @@ Each mirrored repo carries a small caller, pinned to a full commit SHA with a `#
 name: Sync Gitea mirror
 on:
   push:
+    branches: [main] # the caller's default branch; no runs (and no check-runs) on PR branches
   workflow_dispatch:
 jobs:
   mirror-sync:
@@ -56,7 +57,11 @@ here (`chore(deps): update thecrimsontint/.github digest to <sha>`). So:
 - **Default-branch pushes only, never cancelled.** Feature and Renovate branches used to trigger runs
   that cancelled each other under `cancel-in-progress`; a CANCELLED or failed check blocks automerge on
   every PR, whereas a skipped job counts as passing. Keep the job-level `if:` on the default branch and
-  `cancel-in-progress: false`.
+  `cancel-in-progress: false`, AND filter the caller's trigger to its default branch (`on.push.branches`):
+  two pushes of the same SHA seconds apart (a Renovate rebase) queue two runs in one concurrency group
+  and GitHub cancels the second before the job `if:` is evaluated, leaving a `cancelled` check-run on the
+  PR head. The group name carries a `-v2` suffix so an older revision of this workflow can never share
+  (and cancel in) the group.
 - Pin third-party actions by full commit SHA with a version comment (Renovate maintains them).
 - Use `set -euo pipefail` in `run:` steps and keep secrets in `env:`, never inline in commands or logs.
 - Validate workflow syntax before pushing, e.g. `actionlint .github/workflows/*.yml` (if installed) or
