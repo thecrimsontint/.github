@@ -1,20 +1,17 @@
-name: Gitea/Forgejo mirror-sync (reusable)
-# Reusable: makes the in-cluster forges pull this repo's mirror now instead of at their 8h schedule.
+name: Forgejo mirror-sync (reusable)
+# Reusable: makes the in-cluster Forgejo pull this repo's mirror now instead of at its 8h schedule.
 # Called by a thin on:push (default branch only) workflow in each mirrored repo; runs on the in-cluster
-# thecrimsontint-arc org runner against the forges' internal APIs (nothing exposed).
-#
-# Transition (Gitea -> Forgejo): both forges are synced. Gitea stays the blocking step; the Forgejo step
-# is non-blocking (continue-on-error) until the Forgejo cutover, so a Forgejo hiccup can never fail a
-# caller's default-branch check. The Forgejo API base URL comes from the org variable FORGEJO_MIRROR_API
-# (this repo is public: no internal endpoints in it) and the token from the FORGEJO_MIRROR_TOKEN secret.
-# Gitea: tries both owners — most mirrors are under the thecrimsontint org, some legacy ones still under
-# the jstewart user until re-homed.
+# thecrimsontint-arc org runner against Forgejo's internal API (nothing exposed).
+# The API base URL comes from the org variable FORGEJO_MIRROR_API (this repo is public: no internal
+# endpoints in it) and the token from the FORGEJO_MIRROR_TOKEN org secret.
+# The file keeps its historical name (gitea-mirror-sync.yml) so the SHA-pinned callers in every org repo
+# keep working; Renovate moves their pins.
 on:
   workflow_call:
 
 # Default-branch pushes only, never cancelled. Feature/Renovate branches used to run
 # (and get cancelled by each other under cancel-in-progress) and a CANCELLED or failed
-# check blocks automerge on every PR; a skipped job counts as passing. The forges' 8h pull
+# check blocks automerge on every PR; a skipped job counts as passing. Forgejo's 8h pull
 # still picks up the other branches.
 # `-v2`: runs of the pre-2026-10-03 version of this workflow (same group name,
 # cancel-in-progress: true) could still cancel a current run queued in the group
@@ -28,34 +25,15 @@ jobs:
     if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: thecrimsontint-arc
     steps:
-      - name: Trigger Gitea pull-mirror sync
-        env:
-          GITEA_TOKEN: ${{ secrets.GITEA_MIRROR_TOKEN }}
-        run: |
-          set -euo pipefail
-          repo="${GITHUB_REPOSITORY##*/}"
-          base="https://gitea-http.gitea.svc.cluster.local:3000/api/v1"
-          for owner in thecrimsontint jstewart; do
-            code=$(curl -s -k -o /dev/null -w "%{http_code}" -X POST \
-              -H "Authorization: token ${GITEA_TOKEN}" -H "Accept: application/json" \
-              "${base}/repos/${owner}/${repo}/mirror-sync") || true
-            if [ "$code" = "200" ]; then
-              echo "Requested Gitea mirror-sync for ${owner}/${repo}."
-              exit 0
-            fi
-          done
-          echo "No Gitea mirror found for ${repo} under thecrimsontint or jstewart (http=${code})." >&2
-          exit 1
       - name: Trigger Forgejo pull-mirror sync
-        continue-on-error: true
         env:
           FORGEJO_TOKEN: ${{ secrets.FORGEJO_MIRROR_TOKEN }}
           FORGEJO_API: ${{ vars.FORGEJO_MIRROR_API }}
         run: |
           set -euo pipefail
           if [ -z "${FORGEJO_API}" ] || [ -z "${FORGEJO_TOKEN}" ]; then
-            echo "FORGEJO_MIRROR_API / FORGEJO_MIRROR_TOKEN not set; skipping Forgejo." >&2
-            exit 0
+            echo "FORGEJO_MIRROR_API / FORGEJO_MIRROR_TOKEN not set." >&2
+            exit 1
           fi
           repo="${GITHUB_REPOSITORY##*/}"
           code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
