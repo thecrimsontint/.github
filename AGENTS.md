@@ -5,7 +5,7 @@ Canonical agent instructions for this repo (`CLAUDE.md` only imports this file).
 **This repository is PUBLIC.** Everything committed here is world-readable. Never add internal
 hostnames, IP addresses, internal URLs, secret-store paths, tailnet names, usernames, or any other
 infrastructure detail that is not already present. Refer to private systems generically ("the in-cluster
-Gitea", "the private homelab-docs vault", "the Homebox inventory").
+Forgejo", "the private homelab-docs vault", "the Homebox inventory").
 
 ## What this repo is
 
@@ -14,7 +14,7 @@ GitHub Actions workflows** that the other (private) org repos call. Today that i
 
 | Path | Purpose |
 |---|---|
-| `.github/workflows/gitea-mirror-sync.yml` | Reusable (`on: workflow_call`). Asks the in-cluster Gitea to pull its mirror of the calling repo immediately instead of waiting for the periodic pull. Runs only on pushes to the caller's default branch, on the org self-hosted runner set `thecrimsontint-arc`, using the `GITEA_MIRROR_TOKEN` secret inherited from the caller (`secrets: inherit`). Tries the org owner first, then a legacy owner, and fails if neither mirror exists. **Gitea→Forgejo transition:** a second, non-blocking step asks the in-cluster Forgejo to do the same, reading its API base URL from the org variable `FORGEJO_MIRROR_API` and its token from the `FORGEJO_MIRROR_TOKEN` org secret (never hard-code the endpoint here — this repo is public). After the cutover the Forgejo step becomes the only, blocking one. |
+| `.github/workflows/gitea-mirror-sync.yml` | Reusable (`on: workflow_call`). Asks the in-cluster Forgejo to pull its mirror of the calling repo immediately instead of waiting for the periodic pull. Runs only on pushes to the caller's default branch, on the org self-hosted runner set `thecrimsontint-arc`, reading the API base URL from the org variable `FORGEJO_MIRROR_API` and the token from the `FORGEJO_MIRROR_TOKEN` org secret (`secrets: inherit`; never hard-code the endpoint — this repo is public). Fails if the mirror does not exist. Keeps its historical Gitea-era filename so every SHA-pinned caller keeps working. |
 | `README.md` | One-line description. |
 
 Self-hosted Renovate (config + scheduled workflow) used to live here; it moved to the private
